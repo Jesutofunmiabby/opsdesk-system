@@ -1,0 +1,11 @@
+# Local environment files (may contain secrets)
+.env
+.env.*
+!.env.example
+
+# Editor and OS files
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
