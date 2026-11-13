@@ -161,6 +161,21 @@ The other values can stay as they are. `.env` is ignored by Git, so your
 secrets are never committed. Every variable is explained in
 [Environment variables](#environment-variables).
 
+> **Already running OpsDesk on this computer?** The compose file names the
+> project `opsdesk`, so a second copy in another folder would take over the
+> first one's containers and share its database volume. To keep them apart,
+> give the new copy its own project name by adding this line to its `.env`:
+>
+> ```
+> COMPOSE_PROJECT_NAME=opsdesk-clean
+> ```
+>
+> Every `docker compose` command in that folder then uses the new name, with
+> its own containers and its own `opsdesk-clean_dbdata` volume. (Passing
+> `-p opsdesk-clean` to every command does the same.) Both copies publish
+> ports 3000 and 8080, so stop the other one first with `docker compose down`
+> in its folder; that keeps its data.
+
 ### 3. Build and start everything
 
 ```bash
@@ -252,23 +267,31 @@ The frontend reads only `VITE_API_URL`, from its own `.env` file; see the
 
 Every account made with register is a `USER`, and no account can make
 itself an admin through the app, so the first admin is made in the database.
-With the system running, register in the app, then in `opsdesk-system` run
-(with your email, and `DB_USER` if you changed it):
+With the system running, register in the app. Then, in `opsdesk-system`
+(use your `DB_USER` instead of `opsdesk` if you changed it):
 
-```bash
-docker compose exec db psql -U opsdesk -d opsdesk -c "update app_user set role = 'ADMIN' where email = 'you@example.com'"
-```
+1. **List the accounts**, so you can copy your email exactly as it was
+   saved:
 
-It prints `UPDATE 1`. (`UPDATE 0` means no account has that email: check the
-spelling, or register first.) Then **log out and log in again**: the role is
-stored in the login token, so the old token still says `USER`.
+   ```bash
+   docker compose exec db psql -U opsdesk -d opsdesk -c "select id, email, role from app_user order by id"
+   ```
 
-The same command with `'MANAGER'` or `'AGENT'` sets the other roles. To see
-every account and its role:
+   Your account is in the list with the role `USER`. The four sample users
+   are there too.
+2. **Make it an admin**, with that email:
 
-```bash
-docker compose exec db psql -U opsdesk -d opsdesk -c "select id, email, role from app_user order by id"
-```
+   ```bash
+   docker compose exec db psql -U opsdesk -d opsdesk -c "update app_user set role = 'ADMIN' where email = 'you@example.com'"
+   ```
+
+   It prints `UPDATE 1`. If it prints `UPDATE 0`, nothing changed: no
+   account has exactly that email. Run the list command again, copy the email
+   from it, and try once more.
+3. **Log out and log in again.** The role is stored in the login token, so
+   the old token still says `USER`.
+
+The same command with `'MANAGER'` or `'AGENT'` sets the other roles.
 
 ## API documentation (Swagger)
 
@@ -356,4 +379,6 @@ Stop the Compose system first (`docker compose down`), because both use port
 | The backend stops with a `WeakKeyException` ("not secure enough") | `JWT_SECRET` is shorter than 32 characters. Use `openssl rand -base64 48`. |
 | The app shows an error on every page, and the browser console mentions CORS | The address in the browser's address bar is not in `ALLOWED_ORIGIN`. Add it, then `docker compose up`. Use `localhost`, not `127.0.0.1`: they are different origins. |
 | The app calls the wrong API address | `VITE_API_URL` is built in. After changing it, run `docker compose up --build`. |
+| The admin command prints `UPDATE 0` | No account has exactly that email. List the accounts (see [Make the first admin](#make-the-first-admin)), copy the email from there, and run it again. |
 | Still logged in as a `USER` after making yourself an admin | Log out and in again; the role is read from the token. |
+| A second copy of OpsDesk replaced your running one, or shows its tickets | Both use the project name `opsdesk`, so they share containers and the database volume. Set `COMPOSE_PROJECT_NAME` in the new copy's `.env`; see [step 2](#2-create-the-settings-file). |
